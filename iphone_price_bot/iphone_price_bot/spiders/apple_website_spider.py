@@ -2,22 +2,21 @@ import scrapy
 import re
 
 from iphone_price_bot.items import IphonePricesItem
-
-
-def get_country_code(url):
-    country = url.split("/")[3]
-    return "us" if country == "shop" else country
-
-
-def clean_value(value):
-    value = value.strip()
-    value = value.replace(" ", "")
-    value = re.sub(r"[^\x00-\x7F]+", "", value)
-    return value
+from scrapy.loader import ItemLoader
+from scrapy.loader.processors import TakeFirst
 
 
 class AppleWebsiteSpider(scrapy.Spider):
+    """
+    Spider for scraping iPhone prices from Apple's country specific website.
+    """
+
     name = "apple_website_spider"
+
+    # Explicitly set the fields to be exported. For other settings, see: settings.py
+    custom_settings = {
+        "FEED_EXPORT_FIELDS": ["country", "model", "capacity", "color", "price"],
+    }
     allowed_domains = ["www.apple.com"]
     start_urls = [
         "https://www.apple.com/shop/buy-iphone",
@@ -25,6 +24,9 @@ class AppleWebsiteSpider(scrapy.Spider):
         "https://www.apple.com/se/shop/buy-iphone",
     ]
     phone_urls = []
+
+    class IphoneItemLoader(ItemLoader):
+        default_output_processor = TakeFirst()
 
     def parse(self, response):
         self.phone_urls = response.css(
@@ -38,24 +40,23 @@ class AppleWebsiteSpider(scrapy.Spider):
         phones = response.css("div.details")
         model = response.css("h1.fwl::text").extract_first()
 
-        if model:
-            model = model.replace("Buy ", "")
-            model = model.replace("vásárlása", "")
-            model = model.replace("Köp", "")
-            model = clean_value(value=model)
-
         for phone in phones:
-            price = phone.css(".current_price::text").extract_first()
-            capacity = phone.css("span.dimensionCapacity::text").extract_first()
-            capacity += phone.css(
-                "span.dimensionCapacity > small::text"
-            ).extract_first()
+            phone_loader = self.IphoneItemLoader(
+                item=IphonePricesItem(), selector=phone
+            )
+            phone_loader.context["response_url"] = response.url
+            phone_loader.add_value("country", "")
+            phone_loader.add_css("price", ".current_price::text")
 
-            if price:
-                yield {
-                    "country": get_country_code(response.url),
-                    "model": model,
-                    "price": clean_value(price),
-                    "capacity": capacity,
-                    "color": phone.css("span.dimensionColor::text").extract_first(),
-                }
+            # capacity = phone.css("span.dimensionCapacity::text").extract_first()
+            # capacity += phone.css(
+            #     "span.dimensionCapacity > small::text"
+            # ).extract_first()
+
+            phone_loader.add_value("model", model)
+            phone_loader.add_css("capacity", "span.dimensionCapacity::text")
+            phone_loader.add_css(
+                "capacity_unit", "span.dimensionCapacity > small::text"
+            )
+            phone_loader.add_css("color", "span.dimensionColor::text")
+            yield phone_loader.load_item()

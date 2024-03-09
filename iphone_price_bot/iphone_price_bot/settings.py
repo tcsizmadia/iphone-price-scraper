@@ -62,9 +62,15 @@ ROBOTSTXT_OBEY = True
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-# ITEM_PIPELINES = {
-#    "iphone_price_bot.pipelines.iphone_price_botPipeline": 300,
-# }
+ITEM_PIPELINES = {
+    "iphone_price_bot.pipelines.IphonePriceSpiderPipeline": 300,
+    "iphone_price_bot.pipelines.IphonePriceConvertPricePipeline": 400,
+    "iphone_price_bot.pipelines.IphoneColorConverterPipeline": 500,
+}
+
+# Configure feed export settings
+FEED_FORMAT = "csv"
+FEED_URI = "iphone_prices.csv"
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
